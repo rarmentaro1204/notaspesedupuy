@@ -39,7 +39,7 @@ const guard = fn => async (...a) => { try { return await fn(...a); } catch (e) {
 function setHeader(title, back) {
   $title.innerHTML = back ? `<button class="link" style="color:#fff;font-size:18px" id="back">← ${esc(title)}</button>` : esc(title);
   if (back) document.getElementById('back').onclick = back;
-  $who.innerHTML = ls.get('ns_name') && !back ? `${esc(ls.get('ns_name'))} <button id="out">Esci</button>` : '';
+  $who.innerHTML = ls.get('ns_name') && !back ? `<span class="who-name">${esc(ls.get('ns_name'))}</span><button id="out">Esci</button>` : '';
   const o = document.getElementById('out'); if (o) o.onclick = () => { if (confirm('Uscire? Le note spese restano salvate: per rientrare serve il tuo codice.')) { ls.del('ns_token'); viewLogin(); } };
 }
 const fab = (label, fn) => { const b = document.createElement('button'); b.className = 'btn fab'; b.textContent = label; b.onclick = fn; $app.append(b); };
@@ -47,10 +47,10 @@ const total = t => t.expenses.reduce((s, e) => s + e.amount, 0);
 
 function viewLogin(msg) {
   setHeader('Nota Spese');
-  $app.innerHTML = `<div class="login"><h2>Note spese di trasferta</h2><p class="mut">Inserisci il tuo codice personale.</p>
+  $app.innerHTML = `<div class="login"><img class="logo" src="icon-192.png" alt=""><h2>Note spese di trasferta</h2><p class="mut">Inserisci il tuo codice personale.</p>
     ${msg ? `<p style="color:var(--err)">${esc(msg)}</p>` : ''}
-    <input id="code" type="password" autocomplete="off" autocapitalize="off" inputmode="text" placeholder="Codice" style="text-align:center;font-size:22px;max-width:260px">
-    <div class="actions" style="max-width:260px;margin:16px auto"><button class="btn" id="go">Entra</button></div></div>`;
+    <input id="code" type="password" autocomplete="off" autocapitalize="off" inputmode="text" placeholder="Codice">
+    <div class="actions" style="margin-top:14px"><button class="btn" id="go">Entra</button></div></div>`;
   const go = async () => {
     const b = document.getElementById('go'); b.disabled = true;
     try {
@@ -69,14 +69,15 @@ const viewDashboard = guard(async () => {
   $app.innerHTML = '<div class="empty">Caricamento…</div>';
   let trips;
   try { trips = await api('/trips'); } catch (e) { if (e instanceof AuthError) throw e; $app.innerHTML = `<div class="empty">${esc(e.message)}<br><button class="link" id="retry">Riprova</button></div>`; document.getElementById('retry').onclick = viewDashboard; return; }
-  $app.innerHTML = trips.length ? '' : '<div class="empty">Nessuna nota spese.<br>Creane una con il pulsante qui sotto.</div>';
+  const hello = `<div class="hello">Ciao, ${esc(ls.get('ns_name'))}</div>`;
+  $app.innerHTML = hello + (trips.length ? '<div class="cards" id="trips"></div>' : '<div class="empty">Nessuna nota spese.<br>Creane una con il pulsante qui sotto.</div>');
   for (const t of trips) {
     const c = document.createElement('div'); c.className = 'card click';
     c.innerHTML = `<div class="row"><span class="big">${esc(t.destination)}</span><span class="badge ${t.status === 'closed' ? 'closed' : ''}">${t.status === 'closed' ? 'Chiusa' : 'In corso'}</span></div>
       <div class="mut">${dIt(t.date_from)} → ${dIt(t.date_to)}${t.client ? ' · ' + esc(t.client) : ''}</div>
-      <div class="row" style="margin-top:8px"><span class="mut">${t.n_expenses} giustificativi</span><b>${eur(t.total)}</b></div>`;
+      <div class="row" style="margin-top:10px"><span class="mut">${t.n_expenses} giustificativi</span><span class="money">${eur(t.total)}</span></div>`;
     c.onclick = () => viewTrip(t.id);
-    $app.append(c);
+    document.getElementById('trips').append(c);
   }
   fab('+ Nuova nota spese', viewNewTrip);
 });
@@ -90,7 +91,7 @@ const readTripForm = () => ({ destination: val('f_dest'), client: val('f_client'
 
 function viewNewTrip() {
   setHeader('Nuova nota spese', viewDashboard);
-  $app.innerHTML = `<div class="card">${tripForm({ date_from: today(), date_to: today() })}<div class="actions"><button class="btn" id="save">Crea nota spese</button></div></div>`;
+  $app.innerHTML = `<div class="card narrow">${tripForm({ date_from: today(), date_to: today() })}<div class="actions" style="margin-top:16px"><button class="btn" id="save">Crea nota spese</button></div></div>`;
   document.getElementById('save').onclick = guard(async ev => {
     ev.target.disabled = true;
     try { const t = await api('/trips', { method: 'POST', body: readTripForm() }); viewTrip(t.id); }
@@ -104,17 +105,20 @@ const viewTrip = guard(async id => {
   let t;
   try { t = await api('/trips/' + id); } catch (e) { if (e instanceof AuthError) throw e; toast(e.message); return viewDashboard(); }
   const open = t.status === 'open';
-  $app.innerHTML = `<div class="card"><div class="row"><span class="big">${esc(t.destination)}</span><span class="badge ${open ? '' : 'closed'}">${open ? 'In corso' : 'Chiusa'}</span></div>
-    <div class="mut">${dIt(t.date_from)} → ${dIt(t.date_to)}${t.client ? ' · ' + esc(t.client) : ''}</div>
-    <div class="row" style="margin-top:8px"><span class="mut">Totale spese</span><b class="big">${eur(total(t))}</b></div>
-    ${open ? '<button class="link" id="edit">Modifica dati trasferta</button>' : ''}</div>`;
-  if (!t.expenses.length) $app.insertAdjacentHTML('beforeend', '<div class="empty">Nessun giustificativo.<br>Fotografa il primo scontrino.</div>');
+  $app.innerHTML = `<div class="split">
+    <div class="card summary"><div class="row"><span class="big">${esc(t.destination)}</span><span class="badge ${open ? '' : 'closed'}">${open ? 'In corso' : 'Chiusa'}</span></div>
+      <div class="mut">${dIt(t.date_from)} → ${dIt(t.date_to)}${t.client ? ' · ' + esc(t.client) : ''}</div>
+      <div class="row" style="margin-top:12px"><span class="mut">Totale spese · ${t.expenses.length}/${MAX_ROWS} righe</span><span class="money big">${eur(total(t))}</span></div>
+      ${open ? '<button class="link" id="edit">Modifica dati trasferta</button>' : ''}</div>
+    <div class="list" id="explist"></div><div class="tools" id="tools"></div></div>`;
+  const list = document.getElementById('explist'), tools = document.getElementById('tools');
+  if (!t.expenses.length) list.innerHTML = '<div class="empty">Nessun giustificativo.<br>Fotografa il primo scontrino.</div>';
   for (const e of t.expenses) {
     const c = document.createElement('div'); c.className = 'card exp';
-    c.innerHTML = `<img alt="" id="img${e.id}"><div class="grow"><div><b>${esc(e.description || e.category)}</b></div>
-      <div class="mut">${dIt(e.date)} · ${esc(e.category)} · ${esc(e.payment)}</div></div>
-      <div style="text-align:right"><b>${eur(e.amount)}</b>${open ? `<br><button class="link" data-del="${e.id}">Elimina</button>` : ''}</div>`;
-    $app.append(c);
+    c.innerHTML = `<img alt="Scontrino" id="img${e.id}"><div><div class="t">${esc(e.description || e.category)}</div>
+      <div class="mut">${dIt(e.date)} · ${esc(e.category)} · ${esc(e.payment)}${e.notes ? '<br>' + esc(e.notes) : ''}</div></div>
+      <div class="amt"><span class="money">${eur(e.amount)}</span>${open ? `<button class="link del" data-del="${e.id}">Elimina</button>` : ''}</div>`;
+    list.append(c);
     getPhoto(e).then(b => { const i = document.getElementById('img' + e.id); if (i && b) { i.src = URL.createObjectURL(b); i.onclick = () => showPhoto(b); } }).catch(() => {});
   }
   $app.querySelectorAll('[data-del]').forEach(b => b.onclick = guard(async () => {
@@ -123,10 +127,10 @@ const viewTrip = guard(async id => {
   }));
   if (open) {
     document.getElementById('edit').onclick = () => editTrip(t);
-    $app.insertAdjacentHTML('beforeend', `<div class="card"><b>Rimborso chilometrico</b> <span class="mut">(facoltativo)</span>
-      <div class="grid2"><div><label>Tariffa €/Km</label><input id="km_rate" inputmode="decimal" value="${t.km_rate ?? ''}"></div>
+    tools.innerHTML = `<div class="card"><b>Rimborso chilometrico</b> <span class="mut">(facoltativo)</span>
+      <div class="grid2" style="margin-top:10px"><div><label>Tariffa €/Km</label><input id="km_rate" inputmode="decimal" value="${t.km_rate ?? ''}"></div>
       <div><label>Km percorsi</label><input id="km" inputmode="decimal" value="${t.km ?? ''}"></div></div></div>
-      <div class="actions"><button class="btn sec" id="close" ${t.expenses.length ? '' : 'disabled'}>Chiudi trasferta e genera Excel</button><button class="btn danger" id="del">Elimina nota spese</button></div>`);
+      <div class="actions"><button class="btn sec" id="close" ${t.expenses.length ? '' : 'disabled'}>Chiudi trasferta e genera Excel</button><button class="btn danger" id="del">Elimina nota spese</button></div>`;
     document.getElementById('close').onclick = guard(async ev => {
       const kr = num(val('km_rate')), km = num(val('km'));
       if ([kr, km].some(v => v != null && !(v >= 0))) return toast('Km o tariffa non validi');
@@ -140,8 +144,8 @@ const viewTrip = guard(async id => {
     });
     fab('+  Aggiungi giustificativo', () => addReceipt(t));
   } else {
-    $app.insertAdjacentHTML('beforeend', `<div class="card mut">Trasferta chiusa: l'amministrazione la vede già. Scarica l'Excel, controllalo, modificalo se serve e firmalo.</div>
-      <div class="actions"><button class="btn" id="xl">⬇ Scarica Excel</button><button class="btn" id="zp">⬇ Scarica foto scontrini (ZIP)</button><button class="btn sec" id="reopen">Riapri trasferta</button></div>`);
+    tools.innerHTML = `<div class="card mut">Trasferta chiusa: l'amministrazione la vede già. Scarica l'Excel, controllalo, modificalo se serve e firmalo.</div>
+      <div class="actions"><button class="btn" id="xl">⬇ Scarica Excel</button><button class="btn" id="zp">⬇ Scarica foto scontrini (ZIP)</button><button class="btn sec" id="reopen">Riapri trasferta</button></div>`;
     const run = (bid, fn) => document.getElementById(bid).onclick = guard(async ev => {
       ev.target.disabled = true; try { await fn(); } catch (e) { if (e instanceof AuthError) throw e; toast('Errore: ' + e.message); } ev.target.disabled = false;
     });
@@ -152,14 +156,17 @@ const viewTrip = guard(async id => {
 });
 
 function showPhoto(b) {
-  const el = document.createElement('div'); el.className = 'sheet'; el.style.background = '#000';
-  el.innerHTML = `<div class="inner"><button class="link" style="color:#fff" id="c">← Chiudi</button><img class="preview" style="max-height:none;margin-top:12px" src="${URL.createObjectURL(b)}" alt="Scontrino"></div>`;
-  document.body.append(el); el.querySelector('#c').onclick = () => el.remove();
+  const el = document.createElement('div'); el.className = 'sheet viewer';
+  el.innerHTML = `<button class="link" id="c">← Chiudi</button><img src="${URL.createObjectURL(b)}" alt="Scontrino">`;
+  const close = () => { el.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey); document.body.append(el);
+  el.querySelector('#c').onclick = close; el.onclick = e => { if (e.target === el) close(); };
 }
 
 function editTrip(t) {
   setHeader('Modifica trasferta', () => viewTrip(t.id));
-  $app.innerHTML = `<div class="card">${tripForm(t)}<div class="actions"><button class="btn" id="save">Salva</button></div></div>`;
+  $app.innerHTML = `<div class="card narrow">${tripForm(t)}<div class="actions" style="margin-top:16px"><button class="btn" id="save">Salva</button></div></div>`;
   document.getElementById('save').onclick = guard(async () => {
     try { await api('/trips/' + t.id, { method: 'PATCH', body: readTripForm() }); viewTrip(t.id); } catch (e) { if (e instanceof AuthError) throw e; toast(e.message); }
   });
@@ -202,21 +209,29 @@ function receiptSheet(t, photo) {
   const s = { category: null, payment: PAYMENTS.includes(ls.get('ns_lastpay')) ? ls.get('ns_lastpay') : null };
   const d0 = today() >= t.date_from && today() <= t.date_to ? today() : t.date_from;
   const el = document.createElement('div'); el.className = 'sheet';
-  el.innerHTML = `<div class="inner"><div class="row"><b class="big">Nuovo giustificativo</b><button class="link" id="x">Annulla</button></div>
-    <img class="preview" src="${URL.createObjectURL(photo.blob)}" alt="Scontrino" style="margin-top:12px">
-    <label>Tipologia di spesa *</label>
-    <div class="chips">${CATEGORIES.map(c => `<button type="button" class="chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-    <div class="grid2"><div><label>Data *</label><input id="r_date" type="date" value="${d0}"></div>
-      <div><label>Importo € *</label><input id="r_amt" inputmode="decimal" placeholder="0,00"></div></div>
-    <label>Metodo di pagamento *</label>
-    <div class="chips">${PAYMENTS.map(p => `<button type="button" class="chip${p === s.payment ? ' on' : ''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
-    <label>Descrizione</label><input id="r_desc" autocomplete="off" placeholder="es. Pranzo con cliente">
-    <label>Note</label><input id="r_notes" autocomplete="off" placeholder="es. importo originale 45 CHF">
-    <div class="actions"><button class="btn" id="ok" disabled>Salva giustificativo</button></div></div>`;
+  el.innerHTML = `<div class="dlg" role="dialog" aria-modal="true" aria-label="Nuovo giustificativo">
+    <div class="dlg-head"><b class="big">Nuovo giustificativo</b><button class="link" id="x">Annulla</button></div>
+    <div class="dlg-body">
+      <div class="dlg-photo"><img class="preview" id="pv" src="${URL.createObjectURL(photo.blob)}" alt="Scontrino"><div class="mut">Tocca la foto per ingrandirla</div></div>
+      <div class="dlg-form">
+        <label>Tipologia di spesa *</label>
+        <div class="chips">${CATEGORIES.map(c => `<button type="button" class="chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+        <div class="grid2"><div><label>Data *</label><input id="r_date" type="date" value="${d0}"></div>
+          <div><label>Importo € *</label><input id="r_amt" inputmode="decimal" placeholder="0,00"></div></div>
+        <label>Metodo di pagamento *</label>
+        <div class="chips">${PAYMENTS.map(p => `<button type="button" class="chip${p === s.payment ? ' on' : ''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+        <label>Descrizione</label><input id="r_desc" autocomplete="off" placeholder="es. Pranzo con cliente">
+        <label>Note</label><input id="r_notes" autocomplete="off" placeholder="es. importo originale 45 CHF">
+      </div>
+    </div>
+    <div class="dlg-foot"><button class="btn" id="ok" disabled>Salva giustificativo</button></div></div>`;
   document.body.append(el);
   const q = id => el.querySelector('#' + id);
   const refresh = () => { q('ok').disabled = !(s.category && s.payment && q('r_date').value && num(q('r_amt').value) > 0); };
-  q('x').onclick = () => el.remove();
+  const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.viewer')) closeSheet(); };
+  const closeSheet = () => { el.remove(); document.removeEventListener('keydown', onKey); };
+  document.addEventListener('keydown', onKey);
+  q('x').onclick = closeSheet; q('pv').onclick = () => showPhoto(photo.blob);
   el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { s.category = b.dataset.c; el.querySelectorAll('[data-c]').forEach(x => x.classList.toggle('on', x === b)); refresh(); });
   el.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { s.payment = b.dataset.p; el.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); refresh(); });
   ['r_date', 'r_amt'].forEach(i => q(i).oninput = refresh);
@@ -232,9 +247,9 @@ function receiptSheet(t, photo) {
       q('ok').textContent = 'Salvataggio…';
       await api(`/trips/${t.id}/expenses`, { method: 'POST', body: { date, category: s.category, payment: s.payment, amount,
         description: q('r_desc').value, notes: q('r_notes').value, photo: photo.dataUrl } });
-      ls.set('ns_lastpay', s.payment); el.remove(); viewTrip(t.id);
+      ls.set('ns_lastpay', s.payment); closeSheet(); viewTrip(t.id);
     } catch (err) {
-      if (err instanceof AuthError) { el.remove(); return viewLogin(err.message); }   // la foto non va persa: dopo il codice si rifà lo scatto
+      if (err instanceof AuthError) { closeSheet(); return viewLogin(err.message); }   // la foto non va persa: dopo il codice si rifà lo scatto
       toast(err.message); q('ok').disabled = false; q('ok').textContent = 'Salva giustificativo';
     }
   };
