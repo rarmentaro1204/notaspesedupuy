@@ -18,6 +18,15 @@ I dati e le foto sono salvati sul server: non si perdono se si cambia telefono o
 4. **Redeploy** dopo aver impostato le variabili. Apri `https://<progetto>.vercel.app/` (impiegati) e `/admin.html` (amministratore).
 5. Dopo il primo avvio gli impiegati si gestiscono dalla pagina amministratore: `SEED_EMPLOYEES` non serve più.
 
+## Se compare "Errore del server" o "Configurazione incompleta"
+Apri `https://<progetto>.vercel.app/api/health`: mostra cosa è configurato (mai i valori). Deve dire `"ok": true`.
+- `sessionSecret: false` → manca `SESSION_SECRET` (almeno 16 caratteri).
+- `adminPassword: false` → manca `ADMIN_PASSWORD`.
+- `databaseUrl: false` → il database non è collegato al progetto (Storage → collega Neon).
+- `database: "errore"` → l'indirizzo c'è ma la connessione fallisce: i dettagli sono in *Vercel → Logs* (filtra per errori).
+- `employees: 0` → `SEED_EMPLOYEES` mancante o impostata dopo il primo avvio: aggiungi gli impiegati da `/admin.html`.
+Dopo ogni modifica alle variabili serve un **Redeploy**.
+
 ## Sicurezza: da sapere
 - **Codici di 4 cifre sono facili da indovinare** (10.000 combinazioni). Difese presenti: dopo 8 tentativi falliti lo stesso IP viene bloccato per 15 minuti e dopo 60 falliti complessivi si blocca l'accesso a tutti per 15 minuti. Non basta contro un attacco serio: **appena possibile usate codici più lunghi** (6-8 caratteri con lettere e numeri, dalla pagina amministratore → *Cambia codice*) o passate al login Microsoft.
 - L'accesso dura 90 giorni sul telefono. **Disattivare un impiegato lo blocca subito**, anche se è già entrato.

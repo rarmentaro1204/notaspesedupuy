@@ -101,3 +101,17 @@ test('eliminazione impiegato = soft: l\'admin conserva la traccia', async () => 
   const adm = (await call('POST', '/admin/login', { body: { password: 'admin-pw' }, ip: '6.6.6.6' })).body.token;
   assert.equal((await call('GET', `/admin/trips/${t.id}`, { token: adm })).body.deleted, true);
 });
+
+test('diagnostica: /api/health dice cosa è configurato senza rivelare valori', async () => {
+  const r = await call('GET', '/health'); assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { sessionSecret: true, adminPassword: true, databaseUrl: true, employees: r.body.employees, database: 'ok', ok: true });
+  assert.ok(r.body.employees >= 3);
+});
+
+test('SESSION_SECRET mancante: messaggio chiaro invece di "Errore del server"', async () => {
+  const keep = process.env.SESSION_SECRET; delete process.env.SESSION_SECRET;
+  const r = await call('POST', '/login', { body: { code: '1204' }, ip: '7.7.7.7' });
+  process.env.SESSION_SECRET = keep;
+  assert.equal(r.status, 500); assert.match(r.body.error, /SESSION_SECRET/);
+  assert.equal((await call('GET', '/health')).status, 200);
+});

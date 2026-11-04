@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import { query } from '../lib/db.js';
+import { query, dbConfigured } from '../lib/db.js';
 import { signToken, checkPassword, clientIp, assertNotLocked, recordAttempt, requireEmployee, requireAdmin } from '../lib/auth.js';
 
 export const CATEGORIES = ['Trasporti', 'Carburante', 'Pedaggi', 'Taxi', 'Parcheggio', 'Hotel', 'Pasti', 'Altro'];
@@ -35,6 +35,15 @@ app.post('/api/admin/login', async (req, res) => {
   await recordAttempt('admin', ip, ok);
   if (!ok) throw bad('Password errata', 401);
   res.json({ token: signToken({ k: 'admin' }, 12 * 3600_000) });
+});
+
+// Diagnostica: dice cosa è configurato (mai i valori). Utile al primo deploy: apri /api/health
+app.get('/api/health', async (req, res) => {
+  const out = { sessionSecret: (process.env.SESSION_SECRET || '').length >= 16, adminPassword: !!process.env.ADMIN_PASSWORD, databaseUrl: dbConfigured() };
+  try { out.employees = (await query('SELECT count(*)::int AS n FROM employees'))[0].n; out.database = 'ok'; }
+  catch (e) { out.database = 'errore'; console.error('health:', e.message); }
+  out.ok = out.sessionSecret && out.adminPassword && out.database === 'ok' && out.employees > 0;
+  res.status(out.ok ? 200 : 503).json(out);
 });
 
 // ---------- accessori ----------
@@ -73,7 +82,7 @@ function decodePhoto(dataUrl) {
 // ---------- impiegato ----------
 const emp = express.Router();
 emp.use(requireEmployee);
-app.use('/api', (req, res, next) => req.path.startsWith('/admin') || req.path === '/login' ? next() : emp(req, res, next));
+app.use('/api', (req, res, next) => req.path.startsWith('/admin') || req.path === '/login' || req.path === '/health' ? next() : emp(req, res, next));
 
 emp.get('/me', (req, res) => res.json(req.emp));
 emp.get('/trips', async (req, res) => {
@@ -190,7 +199,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Non trovato' }));
 app.use((err, req, res, next) => {
   const status = err.status || 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status >= 500 ? 'Errore del server' : err.message });
+  res.status(status).json({ error: status >= 500 && !err.expose ? 'Errore del server' : err.message });
 });
 
 // Esecuzione locale (node api/index.js): serve anche le pagine statiche. Su Vercel le pagine le serve Vercel.
