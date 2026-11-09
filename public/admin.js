@@ -92,7 +92,7 @@ const viewTrip = guard(async id => {
   if (!t.expenses.length) list.innerHTML = '<div class="empty">Nessun giustificativo.</div>';
   for (const e of t.expenses) {
     const c = document.createElement('div'); c.className = 'card exp';
-    c.innerHTML = `<img alt="Scontrino" id="img${e.id}"><div><div class="t">${esc(e.description || e.category)}</div><div class="mut">${dIt(e.date)} · ${esc(e.category)} · ${esc(e.payment)}${e.notes ? '<br>' + esc(e.notes) : ''}</div></div><div class="amt"><span class="money">${eur(e.amount)}</span></div>`;
+    c.innerHTML = `${e.has_photo ? `<img alt="Scontrino" id="img${e.id}">` : '<div class="noimg">Senza foto</div>'}<div><div class="t">${esc(e.description || e.category)}</div><div class="mut">${dIt(e.date)} · ${esc(e.category)} · ${esc(e.payment)}${e.notes ? '<br>' + esc(e.notes) : ''}${e.has_photo ? '' : `<br><span class="badge warn">${esc(e.reason || 'Senza foto')}</span>`}</div></div><div class="amt"><span class="money">${eur(e.amount)}</span></div>`;
     list.append(c);
     getPhoto(e).then(b => { const i = document.getElementById('img' + e.id); if (i && b) { i.src = URL.createObjectURL(b); i.onclick = () => showPhoto(b); } }).catch(() => {});
   }

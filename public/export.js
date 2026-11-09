@@ -18,8 +18,10 @@ window.NS = (() => {
       ws.getCell(`A${r}`).value = toDate(e.date); fmt(ws.getCell(`A${r}`), 'dd/mm/yyyy');
       ws.getCell(`B${r}`).value = e.category; ws.getCell(`C${r}`).value = e.description; ws.getCell(`D${r}`).value = e.payment;
       ws.getCell(`E${r}`).value = e.amount; fmt(ws.getCell(`E${r}`), '#,##0.00');
-      if (e.notes) ws.getCell(`F${r}`).value = e.notes;
-      ws.getCell(`G${r}`).value = 'SI';
+      // senza foto: Giustificativo = NO e il motivo (fatturato, prenotato online, tap & go…) finisce nelle note
+      const note = [e.notes, e.has_photo === false ? `Senza foto: ${e.reason || 'non indicato'}` : ''].filter(Boolean).join(' - ');
+      if (note) ws.getCell(`F${r}`).value = note;
+      ws.getCell(`G${r}`).value = e.has_photo === false ? 'NO' : 'SI';
     });
     if (t.km_rate != null) ws.getCell('B32').value = t.km_rate;
     if (t.km != null) ws.getCell('B33').value = t.km;

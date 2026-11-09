@@ -115,3 +115,23 @@ test('SESSION_SECRET mancante: messaggio chiaro invece di "Errore del server"', 
   assert.equal(r.status, 500); assert.match(r.body.error, /SESSION_SECRET/);
   assert.equal((await call('GET', '/health')).status, 200);
 });
+
+test('spesa senza foto: serve il motivo, niente foto, conta nelle 15 righe e si chiude', async () => {
+  const t = await login('1403'); const id = (await call('POST', '/trips', { token: t, body: trip })).body.id;
+  const base = { date: '2026-11-03', category: 'Hotel', payment: 'Carta Aziendale', amount: '120', description: 'Hotel prenotato online' };
+  assert.equal((await call('POST', `/trips/${id}/expenses`, { token: t, body: base })).status, 400);                       // né foto né motivo
+  assert.equal((await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'boh' } })).status, 400);  // motivo non ammesso
+  const r = await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'Prenotato online' } });
+  assert.equal(r.status, 201); assert.equal(r.body.has_photo, false); assert.equal(r.body.reason, 'Prenotato online');
+  assert.equal((await call('GET', `/expenses/${r.body.id}/photo`, { token: t })).status, 404);
+  const withPhoto = (await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, photo: PHOTO, reason: 'Altro' } })).body;
+  assert.equal(withPhoto.has_photo, true); assert.equal(withPhoto.reason, '');                                              // con la foto il motivo non serve
+  const d = (await call('GET', `/trips/${id}`, { token: t })).body; assert.equal(d.expenses.length, 2); assert.equal(d.total, 240);
+  assert.equal((await call('POST', `/trips/${id}/close`, { token: t })).status, 200);
+});
+
+test('database esistente senza colonna "reason": viene aggiunta da sola', async () => {
+  const { query } = await import('../lib/db.js');
+  const cols = await query("SELECT column_name FROM information_schema.columns WHERE table_name = 'expenses'");
+  assert.ok(cols.some(c => c.column_name === 'reason'));
+});

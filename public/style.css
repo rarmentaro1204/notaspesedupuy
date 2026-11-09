@@ -65,18 +65,23 @@ input:disabled { background:#f3f5f8; }
 .chips { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(min(100%, 128px), 1fr)); }
 .chip { min-height:44px; border:1.5px solid var(--line); background:#fff; color:var(--txt); border-radius:12px; padding:0 12px; font:inherit; cursor:pointer; transition:background .12s, border-color .12s; }
 .chip:hover { border-color:var(--blue); }
+.chips.wide { grid-template-columns:repeat(auto-fill, minmax(min(100%, 190px), 1fr)); }
 .chip.on { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:650; }
 .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:460px; }
 .filters { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
 /* --- pulsante principale in basso (telefono): barra fissa che non copre i contenuti perché il fondo pagina ha spazio --- */
-.fab { position:fixed; left:var(--gut); right:var(--gut); bottom:calc(14px + env(safe-area-inset-bottom)); width:auto; margin:0 auto; max-width:560px; z-index:9;
-  min-height:56px; font-size:17px; border-radius:16px; box-shadow:0 8px 24px #0f5c8a55; }
+.fabbar { position:fixed; left:var(--gut); right:var(--gut); bottom:calc(14px + env(safe-area-inset-bottom)); margin:0 auto; max-width:560px; z-index:9; display:flex; gap:10px; }
+.fab { flex:1; min-width:0; min-height:56px; font-size:17px; border-radius:16px; box-shadow:0 8px 24px #0f5c8a55; padding:0 14px; }
+.fabsec { flex:0 0 auto; width:auto; min-height:56px; font-size:16px; border-radius:16px; background:#fff; border:1.5px solid var(--blue); color:var(--blue-d); box-shadow:0 8px 24px #1b273322; padding:0 16px; }
+.fabsec:hover:not(:disabled) { background:var(--blue-l); }
+@media (max-width:400px) { .fab { font-size:15px; padding:0 8px; } .fabsec { font-size:15px; padding:0 12px; } }
 body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; height:calc(96px + env(safe-area-inset-bottom)); z-index:8; pointer-events:none; background:linear-gradient(#f3f5f800, var(--bg) 70%); }
 
 /* --- elenco spese --- */
 .exp { display:grid; grid-template-columns:64px 1fr auto; gap:12px; align-items:center; padding:12px; }
 .exp img { width:64px; height:64px; object-fit:cover; border-radius:10px; background:#e8edf2; cursor:zoom-in; }
+.noimg { width:64px; height:64px; border-radius:10px; border:1.5px dashed var(--line); background:#f6f8fa; color:var(--mut); font-size:11px; line-height:1.15; font-weight:600; display:grid; place-items:center; text-align:center; padding:4px; }
 .exp .t { font-weight:650; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .exp .amt { text-align:right; display:grid; justify-items:end; }
 .list { display:grid; gap:10px; align-content:start; }
@@ -111,6 +116,7 @@ body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; h
 
 /* ===== tablet (≥640px) ===== */
 @media (min-width:640px) {
+  .noimg { width:80px; height:80px; font-size:12px; }
   .filters { grid-template-columns:minmax(0, 260px) minmax(0, 200px); }
   .exp { grid-template-columns:80px 1fr auto; padding:14px; } .exp img { width:80px; height:80px; }
   .actions.row2 { grid-template-columns:1fr 1fr; }
@@ -131,14 +137,15 @@ body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; h
   main { padding-bottom:calc(48px + env(safe-area-inset-bottom)); }
   .split { grid-template-columns:minmax(300px, 380px) minmax(0, 1fr); grid-template-rows:auto 1fr; grid-template-areas:"sum list" "tools list"; align-items:start; gap:16px 24px; }
   .split > .summary { position:sticky; top:72px; }
-  .fab { position:sticky; left:auto; right:auto; bottom:24px; justify-self:end; width:auto; min-width:280px; max-width:none; margin:8px 0 0; padding:0 28px; }
+  .fabbar { position:sticky; left:auto; right:auto; bottom:24px; justify-self:end; max-width:none; margin:8px 0 0; }
+  .fab { flex:0 0 auto; min-width:280px; padding:0 28px; }
   body:has(.fab)::after { display:none; }
   #toast { bottom:32px; }
 }
 @media (min-width:1200px) { .cards { grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); } }
 
 /* telefono in orizzontale: poca altezza, la testata non deve rubare spazio */
-@media (max-height:480px) { header { position:static; } .fab { position:static; margin-top:8px; } body:has(.fab)::after { display:none; } main { padding-bottom:24px; } .dlg-head { padding-top:6px; } }
+@media (max-height:480px) { header { position:static; } .fabbar { position:static; margin-top:8px; } body:has(.fab)::after { display:none; } main { padding-bottom:24px; } .dlg-head { padding-top:6px; } }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
 
 /* nome utente: nella testata solo su schermi larghi; sul telefono compare come saluto sopra l'elenco */

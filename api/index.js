@@ -5,6 +5,8 @@ import { signToken, checkPassword, clientIp, assertNotLocked, recordAttempt, req
 
 export const CATEGORIES = ['Trasporti', 'Carburante', 'Pedaggi', 'Taxi', 'Parcheggio', 'Hotel', 'Pasti', 'Altro'];
 export const PAYMENTS = ['Carta Aziendale', 'Carta Personale', 'Contanti', 'Bonifico'];
+// Motivi ammessi per una spesa senza foto
+export const REASONS = ['Fatturato', 'Prenotato online', 'Contactless (tap & go)', 'Altro'];
 const MAX_ROWS = 15; // righe del modulo (14-28)
 
 export const app = express();
@@ -52,7 +54,7 @@ const TRIP_SQL = `SELECT t.id, t.client, t.destination, t.date_from, t.date_to, 
     (SELECT count(*)::int FROM expenses x WHERE x.trip_id = t.id) AS n_expenses,
     (SELECT COALESCE(SUM(x.amount), 0)::float FROM expenses x WHERE x.trip_id = t.id) AS total
   FROM trips t JOIN employees e ON e.id = t.employee_id`;
-const EXP_SQL = 'SELECT id, trip_id, date, category, description, payment, amount, notes, created_at, (photo IS NOT NULL) AS has_photo FROM expenses';
+const EXP_SQL = 'SELECT id, trip_id, date, category, description, payment, amount, notes, reason, created_at, (photo IS NOT NULL) AS has_photo FROM expenses';
 const tripDto = r => ({ id: r.id, client: r.client, destination: r.destination, date_from: r.date_from, date_to: r.date_to, km_rate: r.km_rate, km: r.km,
   status: r.status, created_at: r.created_at, closed_at: r.closed_at, deleted: r.deleted, n_expenses: r.n_expenses, total: r.total,
   owner: { id: r.employee_id, name: r.emp_name, department: r.emp_department } });
@@ -132,9 +134,13 @@ emp.post('/trips/:id/expenses', async (req, res) => {
   if (!PAYMENTS.includes(e.payment)) throw bad('Scegli il metodo di pagamento');
   if (!(e.amount > 0) || e.amount > 100000) throw bad('Importo non valido');
   e.amount = Math.round(e.amount * 100) / 100;
-  const photo = decodePhoto(b.photo), id = uid();
-  await query(`INSERT INTO expenses (id, trip_id, date, category, description, payment, amount, notes, photo, created_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,decode($9,'base64'),$10)`, [id, t.id, e.date, e.category, e.description, e.payment, e.amount, e.notes, photo, now()]);
+  // Foto facoltativa: senza foto (fattura, prenotazione online, tap & go) serve indicare il motivo
+  let photo = null, reason = '';
+  if (b.photo) photo = decodePhoto(b.photo);
+  else { reason = str(b.reason, 40); if (!REASONS.includes(reason)) throw bad('Indica perché non c\'è la foto'); }
+  const id = uid();
+  await query(`INSERT INTO expenses (id, trip_id, date, category, description, payment, amount, notes, reason, photo, created_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,decode($10,'base64'),$11)`, [id, t.id, e.date, e.category, e.description, e.payment, e.amount, e.notes, reason, photo, now()]);
   const [row] = await query(EXP_SQL + ' WHERE id = $1', [id]);
   res.status(201).json(row);
 });
