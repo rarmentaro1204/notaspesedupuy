@@ -4,7 +4,7 @@
 I dati e le foto sono salvati sul server: non si perdono se si cambia telefono o si cancella il browser.
 **Amministratore** (`/admin.html`, con password): vede tutte le note spese di tutti, scarica Excel (sul vostro modulo) e ZIP delle foto, gestisce gli impiegati (aggiunge, cambia codice/reparto, disattiva).
 
-**Spese senza foto**: accanto a «+ Aggiungi giustificativo» c'è «Senza foto» (fattura, prenotazione online, pagamento contactless / tap & go). Serve scegliere il motivo (Fatturato, Prenotato online, Contactless (tap & go), Altro). Nell'Excel la riga ha *Giustificativo = NO* e il motivo compare nelle *Note*; nello ZIP non c'è nessuna foto per quella riga. Contano comunque nelle 15 righe del modulo. Se per «Fatturato» o «Prenotato online» preferite *SI* (il documento esiste altrove), si cambia in una riga di `public/export.js`.
+**Spese senza foto**: accanto a «+ Aggiungi giustificativo» c'è «Senza foto». Serve scegliere il giustificativo: **Fattura** oppure **Pagamento senza scontrino**. Nell'Excel quel testo compare nella colonna *Giustificativo* (per le spese con foto c'è *SI*); nello ZIP non c'è nessuna foto per quella riga. Contano comunque nelle 15 righe del modulo.
 
 ## Messa online su Vercel
 1. **Progetto**: vercel.com → *Add New → Project* → importa il repository GitHub `notaspesedupuy` (il progetto sta alla radice: **non serve** impostare Root Directory; Framework Preset: *Other*). Vercel pubblica in produzione dal ramo `main`.

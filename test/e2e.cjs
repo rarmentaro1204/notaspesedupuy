@@ -30,9 +30,9 @@ const PUB = path.join(__dirname, '../public'); const OUT = process.argv[2] || '/
   await p.waitForFunction(() => document.querySelectorAll('.exp').length === 2); assert.match(await p.textContent('.card'), /72,50/);
   // spesa SENZA foto (es. hotel prenotato online): serve il motivo
   await p.click('#nophoto'); await p.waitForSelector('[data-r]'); await p.click('[data-c="Hotel"]'); await p.fill('#r_date', '2026-11-03'); await p.fill('#r_amt', '120'); await p.click('[data-p="Carta Aziendale"]');
-  assert.equal(await p.isDisabled('#ok'), true, 'senza motivo non si salva'); await p.click('[data-r="Prenotato online"]'); await p.fill('#r_desc', 'Hotel Monaco 1 notte');
+  assert.equal(await p.isDisabled('#ok'), true, 'senza motivo non si salva'); await p.click('[data-r="Fattura"]'); await p.fill('#r_desc', 'Hotel Monaco 1 notte');
   await p.click('#ok'); await p.waitForSelector('.sheet', { state: 'detached' });
-  await p.waitForFunction(() => document.querySelectorAll('.exp').length === 3); assert.match(await p.textContent('.noimg'), /Senza foto/); assert.match(await p.textContent('#explist'), /Prenotato online/);
+  await p.waitForFunction(() => document.querySelectorAll('.exp').length === 3); assert.match(await p.textContent('.noimg'), /Senza foto/); assert.match(await p.textContent('#explist'), /Fattura/);
   await p.waitForFunction(() => [...document.querySelectorAll('.exp img')].every(i => i.src.startsWith('blob:')));   // le foto tornano dal server
   await p.reload(); await p.waitForSelector('.card.click');                                                       // accesso e dati restano
   await p.click('.card.click'); await p.waitForSelector('#close'); await p.fill('#km_rate', '0,42'); await p.fill('#km', '120');

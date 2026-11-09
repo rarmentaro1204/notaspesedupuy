@@ -2,7 +2,7 @@
 const CATEGORIES = ['Trasporti', 'Carburante', 'Pedaggi', 'Taxi', 'Parcheggio', 'Hotel', 'Pasti', 'Altro'];
 const PAYMENTS = ['Carta Aziendale', 'Carta Personale', 'Contanti', 'Bonifico'];
 const MAX_ROWS = 15;   // righe del modulo (14-28)
-const REASONS = ['Fatturato', 'Prenotato online', 'Contactless (tap & go)', 'Altro'];   // perché non c'è la foto
+const REASONS = ['Fattura', 'Pagamento senza scontrino'];   // giustificativo quando non c'è la foto
 
 const $app = document.getElementById('app'), $who = document.getElementById('who'), $title = document.getElementById('title');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -184,7 +184,7 @@ function editTrip(t) {
 // ================= aggiungi giustificativo: fotocamera → dati a mano =================
 function addReceipt(t, noPhoto) {
   if (t.expenses.length >= MAX_ROWS) return toast(`Il modulo ha spazio per ${MAX_ROWS} spese: apri una nuova nota spese.`);
-  if (noPhoto) return receiptSheet(t, null);   // fattura, prenotazione online, tap & go: nessuna foto
+  if (noPhoto) return receiptSheet(t, null);   // fattura o pagamento senza scontrino: nessuna foto
   // L'input deve stare nella pagina: su iPhone (soprattutto dalla home) un input non agganciato viene eliminato prima che arrivi la foto.
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');   // fotocamera posteriore
@@ -223,9 +223,9 @@ function receiptSheet(t, photo) {
     <div class="dlg-head"><b class="big">${photo ? 'Nuovo giustificativo' : 'Spesa senza foto'}</b><button class="link" id="x">Annulla</button></div>
     <div class="dlg-body">
       ${photo ? `<div class="dlg-photo"><img class="preview" id="pv" src="${URL.createObjectURL(photo.blob)}" alt="Scontrino"><div class="mut">Tocca la foto per ingrandirla</div></div>`
-      : `<div class="dlg-photo"><div class="card"><label>Perché non c'è la foto? *</label>
+      : `<div class="dlg-photo"><div class="card"><label>Giustificativo *</label>
           <div class="chips wide">${REASONS.map(r => `<button type="button" class="chip" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>
-          <div class="mut" style="margin-top:10px">Nell'Excel la colonna «Giustificativo» sarà <b>NO</b> e il motivo comparirà nelle note.</div></div></div>`}
+          <div class="mut" style="margin-top:10px">Per spese senza foto dello scontrino: questa scelta comparirà nella colonna «Giustificativo» dell'Excel.</div></div></div>`}
       <div class="dlg-form">
         <label>Tipologia di spesa *</label>
         <div class="chips">${CATEGORIES.map(c => `<button type="button" class="chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>

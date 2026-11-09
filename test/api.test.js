@@ -120,11 +120,11 @@ test('spesa senza foto: serve il motivo, niente foto, conta nelle 15 righe e si 
   const t = await login('1403'); const id = (await call('POST', '/trips', { token: t, body: trip })).body.id;
   const base = { date: '2026-11-03', category: 'Hotel', payment: 'Carta Aziendale', amount: '120', description: 'Hotel prenotato online' };
   assert.equal((await call('POST', `/trips/${id}/expenses`, { token: t, body: base })).status, 400);                       // né foto né motivo
-  assert.equal((await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'boh' } })).status, 400);  // motivo non ammesso
-  const r = await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'Prenotato online' } });
-  assert.equal(r.status, 201); assert.equal(r.body.has_photo, false); assert.equal(r.body.reason, 'Prenotato online');
+  assert.equal((await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'Prenotato online' } })).status, 400);  // vecchi motivi non più ammessi
+  const r = await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, reason: 'Pagamento senza scontrino' } });
+  assert.equal(r.status, 201); assert.equal(r.body.has_photo, false); assert.equal(r.body.reason, 'Pagamento senza scontrino');
   assert.equal((await call('GET', `/expenses/${r.body.id}/photo`, { token: t })).status, 404);
-  const withPhoto = (await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, photo: PHOTO, reason: 'Altro' } })).body;
+  const withPhoto = (await call('POST', `/trips/${id}/expenses`, { token: t, body: { ...base, photo: PHOTO, reason: 'Fattura' } })).body;
   assert.equal(withPhoto.has_photo, true); assert.equal(withPhoto.reason, '');                                              // con la foto il motivo non serve
   const d = (await call('GET', `/trips/${id}`, { token: t })).body; assert.equal(d.expenses.length, 2); assert.equal(d.total, 240);
   assert.equal((await call('POST', `/trips/${id}/close`, { token: t })).status, 200);

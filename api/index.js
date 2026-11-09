@@ -5,8 +5,8 @@ import { signToken, checkPassword, clientIp, assertNotLocked, recordAttempt, req
 
 export const CATEGORIES = ['Trasporti', 'Carburante', 'Pedaggi', 'Taxi', 'Parcheggio', 'Hotel', 'Pasti', 'Altro'];
 export const PAYMENTS = ['Carta Aziendale', 'Carta Personale', 'Contanti', 'Bonifico'];
-// Motivi ammessi per una spesa senza foto
-export const REASONS = ['Fatturato', 'Prenotato online', 'Contactless (tap & go)', 'Altro'];
+// Giustificativi ammessi per una spesa senza foto (il testo finisce nella colonna «Giustificativo» dell'Excel)
+export const REASONS = ['Fattura', 'Pagamento senza scontrino'];
 const MAX_ROWS = 15; // righe del modulo (14-28)
 
 export const app = express();
@@ -134,10 +134,10 @@ emp.post('/trips/:id/expenses', async (req, res) => {
   if (!PAYMENTS.includes(e.payment)) throw bad('Scegli il metodo di pagamento');
   if (!(e.amount > 0) || e.amount > 100000) throw bad('Importo non valido');
   e.amount = Math.round(e.amount * 100) / 100;
-  // Foto facoltativa: senza foto (fattura, prenotazione online, tap & go) serve indicare il motivo
+  // Foto facoltativa: senza foto bisogna indicare il giustificativo (fattura o pagamento senza scontrino)
   let photo = null, reason = '';
   if (b.photo) photo = decodePhoto(b.photo);
-  else { reason = str(b.reason, 40); if (!REASONS.includes(reason)) throw bad('Indica perché non c\'è la foto'); }
+  else { reason = str(b.reason, 40); if (!REASONS.includes(reason)) throw bad('Indica il giustificativo: fattura o pagamento senza scontrino'); }
   const id = uid();
   await query(`INSERT INTO expenses (id, trip_id, date, category, description, payment, amount, notes, reason, photo, created_at)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,decode($10,'base64'),$11)`, [id, t.id, e.date, e.category, e.description, e.payment, e.amount, e.notes, reason, photo, now()]);
