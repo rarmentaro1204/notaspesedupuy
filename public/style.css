@@ -25,7 +25,7 @@ header button:not(.link):hover { background:#ffffff1f; }
 
 /* --- contenitore: una colonna sul telefono, più larga su schermi grandi --- */
 main { display:grid; gap:12px; align-content:start; max-width:var(--maxw); margin:0 auto; min-width:0;
-  padding:var(--gut) max(var(--gut), env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(var(--gut), env(safe-area-inset-left)); }
+  padding:var(--gut) max(var(--gut), env(safe-area-inset-right)) calc(176px + env(safe-area-inset-bottom)) max(var(--gut), env(safe-area-inset-left)); }
 main > * { min-width:0; }
 .cards { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(min(100%, 330px), 1fr)); }
 
@@ -71,12 +71,12 @@ input:disabled { background:#f3f5f8; }
 .filters { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
 /* --- pulsante principale in basso (telefono): barra fissa che non copre i contenuti perché il fondo pagina ha spazio --- */
-.fabbar { position:fixed; left:var(--gut); right:var(--gut); bottom:calc(14px + env(safe-area-inset-bottom)); margin:0 auto; max-width:560px; z-index:9; display:flex; gap:10px; }
-.fab { flex:1; min-width:0; min-height:56px; font-size:17px; border-radius:16px; box-shadow:0 8px 24px #0f5c8a55; padding:0 14px; }
-.fabsec { flex:0 0 auto; width:auto; min-height:56px; font-size:16px; border-radius:16px; background:#fff; border:1.5px solid var(--blue); color:var(--blue-d); box-shadow:0 8px 24px #1b273322; padding:0 16px; }
+.fabbar { position:fixed; left:var(--gut); right:var(--gut); bottom:calc(14px + env(safe-area-inset-bottom)); margin:0 auto; max-width:560px; z-index:9; display:flex; flex-wrap:wrap; gap:8px 10px; }
+.fab { flex:1 1 100%; width:auto; min-width:0; min-height:56px; font-size:17px; border-radius:16px; box-shadow:0 8px 24px #0f5c8a55; padding:0 14px; }
+.fabsec { flex:1 1 0; width:auto; min-height:48px; font-size:16px; border-radius:16px; background:#fff; border:1.5px solid var(--blue); color:var(--blue-d); box-shadow:0 8px 24px #1b273322; padding:0 16px; }
 .fabsec:hover:not(:disabled) { background:var(--blue-l); }
-@media (max-width:400px) { .fab { font-size:15px; padding:0 8px; } .fabsec { font-size:15px; padding:0 12px; } }
-body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; height:calc(96px + env(safe-area-inset-bottom)); z-index:8; pointer-events:none; background:linear-gradient(#f3f5f800, var(--bg) 70%); }
+@media (max-width:400px) { .fabsec { font-size:15px; padding:0 10px; } }
+body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; height:calc(150px + env(safe-area-inset-bottom)); z-index:8; pointer-events:none; background:linear-gradient(#f3f5f800, var(--bg) 70%); }
 
 /* --- elenco spese --- */
 .exp { display:grid; grid-template-columns:64px 1fr auto; gap:12px; align-items:center; padding:12px; }
@@ -116,6 +116,9 @@ body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; h
 
 /* ===== tablet (≥640px) ===== */
 @media (min-width:640px) {
+  main { padding-bottom:calc(112px + env(safe-area-inset-bottom)); }
+  body:has(.fab)::after { height:calc(96px + env(safe-area-inset-bottom)); }
+  .fab { flex:1 1 0; } .fabsec { flex:0 0 auto; min-height:56px; }
   .noimg { width:80px; height:80px; font-size:12px; }
   .filters { grid-template-columns:minmax(0, 260px) minmax(0, 200px); }
   .exp { grid-template-columns:80px 1fr auto; padding:14px; } .exp img { width:80px; height:80px; }
@@ -137,7 +140,7 @@ body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; h
   main { padding-bottom:calc(48px + env(safe-area-inset-bottom)); }
   .split { grid-template-columns:minmax(300px, 380px) minmax(0, 1fr); grid-template-rows:auto 1fr; grid-template-areas:"sum list" "tools list"; align-items:start; gap:16px 24px; }
   .split > .summary { position:sticky; top:72px; }
-  .fabbar { position:sticky; left:auto; right:auto; bottom:24px; justify-self:end; max-width:none; margin:8px 0 0; }
+  .fabbar { position:sticky; left:auto; right:auto; bottom:24px; justify-self:end; max-width:none; margin:8px 0 0; flex-wrap:nowrap; }
   .fab { flex:0 0 auto; min-width:280px; padding:0 28px; }
   body:has(.fab)::after { display:none; }
   #toast { bottom:32px; }

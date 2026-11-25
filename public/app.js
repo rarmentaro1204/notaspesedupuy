@@ -44,10 +44,10 @@ function setHeader(title, back) {
   const o = document.getElementById('out'); if (o) o.onclick = () => { if (confirm('Uscire? Le note spese restano salvate: per rientrare serve il tuo codice.')) { ls.del('ns_token'); viewLogin(); } };
 }
 // Barra azioni in basso: pulsante principale + (facoltativo) pulsante secondario
-const fab = (label, fn, extra) => {
+const fab = (label, fn, extras = []) => {
   const bar = document.createElement('div'); bar.className = 'fabbar';
   const b = document.createElement('button'); b.className = 'btn fab'; b.textContent = label; b.onclick = fn; bar.append(b);
-  if (extra) { const x = document.createElement('button'); x.className = 'btn sec fabsec'; x.id = extra.id; x.textContent = extra.label; x.onclick = extra.fn; bar.append(x); }
+  for (const extra of extras) { const x = document.createElement('button'); x.className = 'btn sec fabsec'; x.id = extra.id; x.textContent = extra.label; x.onclick = extra.fn; bar.append(x); }
   $app.append(bar);
 };
 const thumb = e => e.has_photo ? `<img alt="Scontrino" id="img${e.id}">` : '<div class="noimg">Senza foto</div>';
@@ -151,7 +151,9 @@ const viewTrip = guard(async id => {
       if (!confirm("Eliminare l'intera nota spese?")) return;
       try { await api('/trips/' + id, { method: 'DELETE' }); viewDashboard(); } catch (e) { if (e instanceof AuthError) throw e; toast(e.message); }
     });
-    fab('+  Aggiungi giustificativo', () => addReceipt(t), { id: 'nophoto', label: 'Senza foto', fn: () => addReceipt(t, true) });
+    fab('+  Aggiungi giustificativo', () => addReceipt(t, 'camera'), [
+      { id: 'gallery', label: 'Dalla galleria', fn: () => addReceipt(t, 'gallery') },   // foto già scattata o file salvato sul dispositivo
+      { id: 'nophoto', label: 'Senza foto', fn: () => addReceipt(t, 'none') }]);
   } else {
     tools.innerHTML = `<div class="card mut">Trasferta chiusa: l'amministrazione la vede già. Scarica l'Excel, controllalo, modificalo se serve e firmalo.</div>
       <div class="actions"><button class="btn" id="xl">⬇ Scarica Excel</button><button class="btn" id="zp">⬇ Scarica foto scontrini (ZIP)</button><button class="btn sec" id="reopen">Riapri trasferta</button></div>`;
@@ -182,18 +184,20 @@ function editTrip(t) {
 }
 
 // ================= aggiungi giustificativo: fotocamera → dati a mano =================
-function addReceipt(t, noPhoto) {
+// mode: 'camera' = apre la fotocamera · 'gallery' = sceglie una foto/immagine già presente sul dispositivo · 'none' = nessuna foto
+function addReceipt(t, mode = 'camera') {
   if (t.expenses.length >= MAX_ROWS) return toast(`Il modulo ha spazio per ${MAX_ROWS} spese: apri una nuova nota spese.`);
-  if (noPhoto) return receiptSheet(t, null);   // fattura o pagamento senza scontrino: nessuna foto
+  if (mode === 'none') return receiptSheet(t, null);   // fattura o pagamento senza scontrino: nessuna foto
   // L'input deve stare nella pagina: su iPhone (soprattutto dalla home) un input non agganciato viene eliminato prima che arrivi la foto.
   const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');   // fotocamera posteriore
+  inp.type = 'file'; inp.accept = 'image/*';
+  if (mode === 'camera') inp.setAttribute('capture', 'environment');   // fotocamera posteriore; senza "capture" si apre la galleria / i file
   inp.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px';
   document.body.append(inp);
   inp.addEventListener('change', async () => {
     const f = inp.files[0]; inp.remove();
     if (!f) return;
-    try { receiptSheet(t, await shrink(f)); } catch (e) { toast('Foto non leggibile: ' + e.message); }
+    try { receiptSheet(t, await shrink(f)); } catch (e) { toast('Immagine non leggibile: ' + e.message + '. Sono ammesse foto/immagini (JPG, PNG); per un PDF usa «Senza foto» → Fattura.'); }
   });
   inp.addEventListener('cancel', () => inp.remove());
   inp.click();
