@@ -104,7 +104,7 @@ test('eliminazione impiegato = soft: l\'admin conserva la traccia', async () => 
 
 test('diagnostica: /api/health dice cosa è configurato senza rivelare valori', async () => {
   const r = await call('GET', '/health'); assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { sessionSecret: true, adminPassword: true, databaseUrl: true, employees: r.body.employees, database: 'ok', ok: true });
+  assert.deepEqual(r.body, { microsoft: false, sessionSecret: true, adminPassword: true, databaseUrl: true, employees: r.body.employees, database: 'ok', ok: true });
   assert.ok(r.body.employees >= 3);
 });
 

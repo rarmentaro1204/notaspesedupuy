@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import { query, dbConfigured } from '../lib/db.js';
+import { query, dbConfigured, ConfigError } from '../lib/db.js';
+import { verifyIdToken, isGuid } from '../lib/msjwt.js';
 import { signToken, checkPassword, clientIp, assertNotLocked, recordAttempt, requireEmployee, requireAdmin } from '../lib/auth.js';
 
 export const CATEGORIES = ['Trasporti', 'Carburante', 'Pedaggi', 'Taxi', 'Parcheggio', 'Hotel', 'Pasti', 'Altro'];
@@ -22,6 +23,24 @@ const now = () => new Date().toISOString();
 const uid = () => crypto.randomUUID();
 
 // ---------- accesso ----------
+// Login Microsoft: attivo solo se sono impostate AZURE_CLIENT_ID e AZURE_TENANT_ID (valori pubblici, non segreti)
+const msConfig = () => { const clientId = process.env.AZURE_CLIENT_ID || '', tenant = process.env.AZURE_TENANT_ID || ''; return clientId && tenant ? { clientId, tenant } : null; };
+app.get('/api/config', (req, res) => { const m = msConfig(); res.json({ microsoft: m ? { clientId: m.clientId, tenantId: m.tenant } : null }); });
+
+// Il browser porta l'id_token ottenuto da Microsoft; qui si controlla la firma e si cerca l'impiegato con quella e-mail.
+app.post('/api/login/microsoft', async (req, res) => {
+  const m = msConfig(); if (!m) throw bad('Il login Microsoft non è attivo', 503);
+  if (!isGuid(m.tenant)) throw new ConfigError("Configurazione incompleta: AZURE_TENANT_ID deve essere l'ID della directory (formato xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)");
+  const ip = clientIp(req); await assertNotLocked('ms', ip, false);   // niente blocco globale: la firma non si indovina
+  let claims;
+  try { claims = await verifyIdToken(req.body.id_token, { tenant: m.tenant.toLowerCase(), clientId: m.clientId, nonce: str(req.body.nonce, 200) }); }
+  catch (err) { await recordAttempt('ms', ip, false); console.error('login Microsoft rifiutato:', err.message); throw bad('Accesso Microsoft non valido: riprova', 401); }
+  const email = String(claims.preferred_username || claims.email || claims.upn || '').trim().toLowerCase();
+  const [e] = email ? await query('SELECT id, name, department FROM employees WHERE lower(email) = $1 AND active = TRUE', [email]) : [];
+  await recordAttempt('ms', ip, !!e);
+  if (!e) throw bad(`L'account ${email || 'Microsoft'} non è abilitato: chiedi all'amministratore di registrare la tua e-mail.`, 403);
+  res.json({ token: signToken({ k: 'emp', id: e.id }, 90 * 24 * 3600_000), name: e.name, department: e.department });
+});
 app.post('/api/login', async (req, res) => {
   const ip = clientIp(req); await assertNotLocked('emp', ip);
   const code = str(req.body.code, 40);
@@ -41,7 +60,7 @@ app.post('/api/admin/login', async (req, res) => {
 
 // Diagnostica: dice cosa è configurato (mai i valori). Utile al primo deploy: apri /api/health
 app.get('/api/health', async (req, res) => {
-  const out = { sessionSecret: (process.env.SESSION_SECRET || '').length >= 16, adminPassword: !!process.env.ADMIN_PASSWORD, databaseUrl: dbConfigured() };
+  const out = { microsoft: !!msConfig(), sessionSecret: (process.env.SESSION_SECRET || '').length >= 16, adminPassword: !!process.env.ADMIN_PASSWORD, databaseUrl: dbConfigured() };
   try { out.employees = (await query('SELECT count(*)::int AS n FROM employees'))[0].n; out.database = 'ok'; }
   catch (e) { out.database = 'errore'; console.error('health:', e.message); }
   out.ok = out.sessionSecret && out.adminPassword && out.database === 'ok' && out.employees > 0;
@@ -84,7 +103,7 @@ function decodePhoto(dataUrl) {
 // ---------- impiegato ----------
 const emp = express.Router();
 emp.use(requireEmployee);
-app.use('/api', (req, res, next) => req.path.startsWith('/admin') || req.path === '/login' || req.path === '/health' ? next() : emp(req, res, next));
+app.use('/api', (req, res, next) => req.path.startsWith('/admin') || req.path.startsWith('/login') || req.path === '/health' || req.path === '/config' ? next() : emp(req, res, next));
 
 emp.get('/me', (req, res) => res.json(req.emp));
 emp.get('/trips', async (req, res) => {
@@ -168,28 +187,31 @@ const adm = express.Router();
 adm.use(requireAdmin);
 app.use('/api/admin', (req, res, next) => req.path === '/login' ? next() : adm(req, res, next));
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const cleanEmail = v => { const e = str(v, 200).toLowerCase(); if (e && !EMAIL_RE.test(e)) throw bad('E-mail non valida'); return e; };
+const dupMsg = err => /employees_email/.test(err.message) ? 'Questa e-mail è già assegnata a un altro impiegato' : 'Questo codice è già usato da un altro impiegato';
 adm.get('/employees', async (req, res) => res.json(await query(
-  `SELECT e.id, e.name, e.department, e.code, e.active, (SELECT count(*)::int FROM trips t WHERE t.employee_id = e.id AND NOT t.deleted) AS n_trips
+  `SELECT e.id, e.name, e.department, e.code, e.email, e.active, (SELECT count(*)::int FROM trips t WHERE t.employee_id = e.id AND NOT t.deleted) AS n_trips
    FROM employees e ORDER BY e.name`)));
 adm.post('/employees', async (req, res) => {
-  const name = str(req.body.name, 100), code = str(req.body.code, 40), department = str(req.body.department, 100);
+  const name = str(req.body.name, 100), code = str(req.body.code, 40), department = str(req.body.department, 100), email = cleanEmail(req.body.email);
   if (!name) throw bad('Indica nome e cognome');
   if (!/^[A-Za-z0-9]{4,40}$/.test(code)) throw bad('Il codice deve avere almeno 4 caratteri (lettere o numeri)');
   try {
-    const [e] = await query('INSERT INTO employees (name, code, department, created_at) VALUES ($1,$2,$3,$4) RETURNING id, name, department, code, active', [name, code, department, now()]);
+    const [e] = await query('INSERT INTO employees (name, code, department, email, created_at) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, department, code, email, active', [name, code, department, email, now()]);
     res.status(201).json(e);
-  } catch (err) { if (/unique|duplicate/i.test(err.message)) throw bad('Questo codice è già usato da un altro impiegato'); throw err; }
+  } catch (err) { if (/unique|duplicate/i.test(err.message)) throw bad(dupMsg(err)); throw err; }
 });
 adm.patch('/employees/:id', async (req, res) => {
   const [cur] = await query('SELECT * FROM employees WHERE id = $1', [Number(req.params.id)]);
   if (!cur) throw bad('Impiegato non trovato', 404);
   const b = req.body, name = b.name != null ? str(b.name, 100) : cur.name, department = b.department != null ? str(b.department, 100) : cur.department;
-  const code = b.code != null ? str(b.code, 40) : cur.code, active = b.active != null ? !!b.active : cur.active;
+  const code = b.code != null ? str(b.code, 40) : cur.code, active = b.active != null ? !!b.active : cur.active, email = b.email != null ? cleanEmail(b.email) : cur.email;
   if (!name) throw bad('Indica nome e cognome');
   if (!/^[A-Za-z0-9]{4,40}$/.test(code)) throw bad('Il codice deve avere almeno 4 caratteri (lettere o numeri)');
-  try { await query('UPDATE employees SET name=$1, department=$2, code=$3, active=$4 WHERE id=$5', [name, department, code, active, cur.id]); }
-  catch (err) { if (/unique|duplicate/i.test(err.message)) throw bad('Questo codice è già usato da un altro impiegato'); throw err; }
-  res.json({ id: cur.id, name, department, code, active });
+  try { await query('UPDATE employees SET name=$1, department=$2, code=$3, active=$4, email=$5 WHERE id=$6', [name, department, code, active, email, cur.id]); }
+  catch (err) { if (/unique|duplicate/i.test(err.message)) throw bad(dupMsg(err)); throw err; }
+  res.json({ id: cur.id, name, department, code, email, active });
 });
 adm.get('/trips', async (req, res) => {
   res.json((await query(TRIP_SQL + ' ORDER BY t.created_at DESC LIMIT 500')).map(tripDto));

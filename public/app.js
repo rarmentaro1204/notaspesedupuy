@@ -54,10 +54,52 @@ const thumb = e => e.has_photo ? `<img alt="Scontrino" id="img${e.id}">` : '<div
 const reasonBadge = e => e.has_photo ? '' : `<br><span class="badge warn">${esc(e.reason || 'Senza foto')}</span>`;
 const total = t => t.expenses.reduce((s, e) => s + e.amount, 0);
 
+// ================= accesso =================
+// Login Microsoft (Entra ID): flusso "authorization code + PKCE" per app a pagina singola. Il server controlla poi la firma del token.
+let cfg = null;
+const loadCfg = async () => cfg ??= await fetch('api/config').then(r => r.json()).catch(() => ({ microsoft: null }));
+const msRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
+const rand = n => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(n)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const sha256 = async v => btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function msStart() {
+  const m = (await loadCfg()).microsoft;
+  const st = { verifier: rand(48), state: rand(24), nonce: rand(24), redirect: msRedirect() };
+  try { sessionStorage.setItem('ns_ms', JSON.stringify(st)); } catch { throw new Error('Il browser non permette l\'accesso: disattiva la navigazione privata'); }
+  const u = new URL(`https://login.microsoftonline.com/${m.tenantId}/oauth2/v2.0/authorize`);
+  u.search = new URLSearchParams({ client_id: m.clientId, response_type: 'code', redirect_uri: st.redirect, response_mode: 'query', scope: 'openid profile email',
+    state: st.state, nonce: st.nonce, code_challenge: await sha256(st.verifier), code_challenge_method: 'S256', prompt: 'select_account' });
+  location.assign(u);
+}
+// Al ritorno da Microsoft la pagina si riapre con ?code=…&state=…: scambia il codice con il token e lo porta al nostro server.
+async function msCallback() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('state') || !(q.has('code') || q.has('error'))) return null;
+  let saved = null; try { saved = JSON.parse(sessionStorage.getItem('ns_ms') || 'null'); sessionStorage.removeItem('ns_ms'); } catch {}
+  history.replaceState(null, '', (saved && saved.redirect) || msRedirect());   // toglie il codice dall'indirizzo
+  if (!saved || saved.state !== q.get('state')) throw new Error('Accesso Microsoft interrotto: riprova.');
+  if (q.has('error')) throw new Error(q.get('error_description') || q.get('error'));
+  const m = (await loadCfg()).microsoft;
+  const tr = await fetch(`https://login.microsoftonline.com/${m.tenantId}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: m.clientId, grant_type: 'authorization_code', code: q.get('code'), redirect_uri: saved.redirect, code_verifier: saved.verifier, scope: 'openid profile email' }) })
+    .catch(() => { throw new Error('Connessione assente'); });
+  const tj = await tr.json().catch(() => ({}));
+  if (!tr.ok || !tj.id_token) {
+    const d = tj.error_description || '';
+    throw new Error(/AADSTS9002326|AADSTS50194|redirect/i.test(d) ? 'Configurazione Microsoft da correggere: l\'app deve essere registrata come "Single-page application" con questo indirizzo come Redirect URI.' : (d.split('\r\n')[0] || 'Accesso Microsoft non riuscito'));
+  }
+  const r = await fetch('api/login/microsoft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_token: tj.id_token, nonce: saved.nonce }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Errore ' + r.status);
+  return j;
+}
+
 function viewLogin(msg) {
   setHeader('Nota Spese');
-  $app.innerHTML = `<div class="login"><img class="logo" src="icon-192.png" alt=""><h2>Note spese di trasferta</h2><p class="mut">Inserisci il tuo codice personale.</p>
-    ${msg ? `<p style="color:var(--err)">${esc(msg)}</p>` : ''}
+  $app.innerHTML = `<div class="login"><img class="logo" src="icon-192.png" alt=""><h2>Note spese di trasferta</h2>
+    ${msg ? `<p style="color:var(--err)" role="alert">${esc(msg)}</p>` : ''}
+    <div id="msbox"></div>
+    <p class="mut" id="codehint">Inserisci il tuo codice personale.</p>
     <input id="code" type="password" autocomplete="off" autocapitalize="off" inputmode="text" placeholder="Codice">
     <div class="actions" style="margin-top:14px"><button class="btn" id="go">Entra</button></div></div>`;
   const go = async () => {
@@ -71,6 +113,13 @@ function viewLogin(msg) {
   };
   document.getElementById('go').onclick = go;
   document.getElementById('code').onkeydown = e => { if (e.key === 'Enter') go(); };
+  // pulsante Microsoft: compare solo se l'amministratore IT ha configurato l'app (AZURE_CLIENT_ID / AZURE_TENANT_ID)
+  loadCfg().then(c => {
+    if (!c.microsoft || !document.getElementById('msbox')) return;
+    document.getElementById('msbox').innerHTML = `<button class="btn ms" id="msgo"><svg width="20" height="20" viewBox="0 0 21 21" aria-hidden="true"><rect width="10" height="10" fill="#f25022"/><rect x="11" width="10" height="10" fill="#7fba00"/><rect y="11" width="10" height="10" fill="#00a4ef"/><rect x="11" y="11" width="10" height="10" fill="#ffb900"/></svg>Accedi con Microsoft</button><div class="or"><span>oppure</span></div>`;
+    document.getElementById('codehint').textContent = 'Usa il tuo codice personale.';
+    document.getElementById('msgo').onclick = async ev => { ev.target.disabled = true; try { await msStart(); } catch (e) { toast(e.message); ev.target.disabled = false; } };
+  });
 }
 
 const viewDashboard = guard(async () => {
@@ -274,6 +323,11 @@ function receiptSheet(t, photo) {
 }
 
 // ================= avvio =================
-ls.get('ns_token') ? viewDashboard() : viewLogin();
+(async () => {
+  let msg;
+  try { const r = await msCallback(); if (r) { ls.set('ns_token', r.token); ls.set('ns_name', r.name); return viewDashboard(); } }
+  catch (e) { msg = e.message; }
+  ls.get('ns_token') ? viewDashboard() : viewLogin(msg);
+})();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

@@ -15,10 +15,25 @@ I dati e le foto sono salvati sul server: non si perdono se si cambia telefono o
 |---|---|
 | `SESSION_SECRET` | testo casuale lungo (almeno 32 caratteri); firma gli accessi. Se lo cambi, tutti devono rientrare col codice |
 | `ADMIN_PASSWORD` | la password dell'area amministratore (lunga) |
-| `SEED_EMPLOYEES` | impiegati iniziali, usata **solo se la tabella è vuota**: `Nome Cognome:codice:reparto, Altro Nome:codice` (il reparto è facoltativo) |
+| `SEED_EMPLOYEES` | impiegati iniziali, usata **solo se la tabella è vuota**: `Nome Cognome:codice:reparto:email, Altro Nome:codice` (reparto ed e-mail sono facoltativi) |
+| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` | *facoltative*: attivano «Accedi con Microsoft» (vedi sezione sotto) |
 
 4. **Redeploy** dopo aver impostato le variabili. Apri `https://<progetto>.vercel.app/` (impiegati) e `/admin.html` (amministratore).
 5. Dopo il primo avvio gli impiegati si gestiscono dalla pagina amministratore: `SEED_EMPLOYEES` non serve più.
+
+## Accesso con Microsoft (Outlook / Microsoft 365) — facoltativo
+Se configurato, nella schermata di accesso compare **Accedi con Microsoft**; il **codice personale resta valido** come alternativa. Se non è configurato non compare nulla e tutto funziona come prima.
+L'impiegato entra solo se l'amministratore ha registrato la sua **e-mail** (pagina `/admin.html` → *Impiegati* → campo *E-mail* o pulsante *E-mail*): serve l'indirizzo con cui accede a Outlook/Microsoft 365 (di norma il nome utente, es. `nome@azienda.it`). Chi ha un account Microsoft valido ma nessuna e-mail registrata vede un messaggio che lo invita a chiedere all'amministratore.
+
+**Da fare una volta, da un amministratore di Microsoft 365** (portale <https://entra.microsoft.com> → *App registrations* → *New registration*):
+1. Nome a piacere (es. «Nota Spese»). *Supported account types*: **Accounts in this organizational directory only** (solo la vostra azienda).
+2. *Redirect URI*: tipo **Single-page application (SPA)** — non «Web» — con l'indirizzo dell'app **con la "/" finale**, es. `https://notaspesedupuy.vercel.app/`. Se l'app è raggiungibile anche da un altro indirizzo (dominio aziendale, sublink) aggiungere anche quello: ogni indirizzo va registrato.
+3. Non servono segreti né permessi aggiuntivi (bastano quelli di accesso già inclusi: openid, profile, email) e non serve il «consenso amministratore».
+4. Dalla pagina *Overview* copiare **Application (client) ID** e **Directory (tenant) ID**.
+5. Su Vercel (*Settings → Environment Variables*) aggiungere `AZURE_CLIENT_ID` e `AZURE_TENANT_ID` con quei due valori (sono pubblici, non segreti) e fare **Redeploy**. `AZURE_TENANT_ID` deve essere l'ID in formato `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` (non «common» né il nome del dominio).
+
+Come funziona e cosa è verificato: il browser porta l'impiegato su Microsoft, che lo rimanda all'app con un token; il server controlla la firma del token con le chiavi pubbliche di Microsoft e che emittente, destinatario, scadenza e *nonce* siano quelli attesi, poi cerca l'impiegato con quell'e-mail. Un token falso, scaduto, di un'altra app o di un altro tenant viene rifiutato (test automatici). `/api/health` mostra `"microsoft": true` quando è attivo.
+Messaggio d'errore frequente: «l'app deve essere registrata come Single-page application» → il Redirect URI è stato creato con tipo *Web* o l'indirizzo non coincide.
 
 ## Se compare "Errore del server" o "Configurazione incompleta"
 Apri `https://<progetto>.vercel.app/api/health`: mostra cosa è configurato (mai i valori). Deve dire `"ok": true`.
@@ -46,10 +61,11 @@ Dopo ogni modifica alle variabili serve un **Redeploy**.
 ## Sviluppo e test
 ```bash
 npm install
-npm test                          # 8 test API con Postgres in memoria (PGlite)
+npm test                          # test API e login Microsoft con Postgres in memoria (PGlite)
 node test/e2e.cjs                 # browser reale: impiegato + amministratore (serve playwright)
+node test/e2e-microsoft.cjs       # browser reale: login Microsoft con Microsoft simulato
 SESSION_SECRET=... ADMIN_PASSWORD=... DATABASE_URL=... npm start    # locale su :3000
 ```
 
-## Non ancora provato
-Tutto è testato in locale con Postgres in memoria. **Non è mai stato messo su Vercel/Neon reali**: al primo deploy verificare, in ordine: login con un codice, creazione nota spese, scatto e salvataggio di uno scontrino, pagina `/admin.html`, download Excel e ZIP. Punti da controllare per primi se qualcosa non va: la regola di rewrite `/api/*` in `vercel.json` e la variabile `DATABASE_URL`.
+## Cosa non è stato provato con servizi reali
+Tutto è coperto da test automatici in locale (Postgres in memoria, browser simulato). L'app è in uso su Vercel con Neon, ma **il login Microsoft non è mai stato provato con un tenant Microsoft reale** (solo con un Microsoft simulato): al primo giro usare un account di prova già registrato in *Impiegati*. Se qualcosa non va, controllare per primi la registrazione dell'app (tipo *Single-page application* e Redirect URI identico all'indirizzo) e `/api/health`.

@@ -159,3 +159,9 @@ body:has(.fab)::after { content:""; position:fixed; left:0; right:0; bottom:0; h
 .cards > .card.click { display:flex; flex-direction:column; }
 .cards > .card.click > .row:last-child { margin-top:auto !important; padding-top:10px; }
 .btnrow { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; } .btnrow .btn { flex:1 1 auto; }
+
+/* pulsante «Accedi con Microsoft» (colori ufficiali: sfondo bianco, bordo grigio) */
+.btn.ms { display:flex; align-items:center; justify-content:center; gap:12px; background:#fff; color:#2f2f2f; border:1.5px solid #8c8c8c; margin-top:18px; }
+.btn.ms:hover:not(:disabled) { background:#f3f3f3; }
+.or { display:flex; align-items:center; gap:12px; color:var(--mut); font-size:13px; margin:18px 0 4px; }
+.or::before, .or::after { content:""; flex:1; height:1px; background:var(--line); }

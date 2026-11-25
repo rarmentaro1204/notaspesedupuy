@@ -115,21 +115,24 @@ async function viewEmployees() {
   $app.innerHTML = tabs('emps') + `<div class="split">
     <div class="card summary"><b class="big">Nuovo impiegato</b>
       <label style="margin-top:12px">Nome e cognome *</label><input id="n_name" autocomplete="off"><label>Reparto</label><input id="n_dep" autocomplete="off">
+      <label>E-mail Microsoft / Outlook (per «Accedi con Microsoft»)</label><input id="n_email" type="email" autocomplete="off" autocapitalize="off" placeholder="nome@azienda.it">
       <label>Codice personale * (almeno 4 caratteri, lettere o numeri)</label><input id="n_code" autocomplete="off" autocapitalize="off">
       <div class="actions" style="margin-top:16px"><button class="btn" id="n_add">Aggiungi</button></div></div>
     <div class="cards list" id="el"></div></div>`;
   bindTabs();
   document.getElementById('n_add').onclick = guard(async () => {
-    await api('/employees', { method: 'POST', body: { name: val('n_name'), department: val('n_dep'), code: val('n_code') } }); viewHome('emps');
+    await api('/employees', { method: 'POST', body: { name: val('n_name'), department: val('n_dep'), email: val('n_email'), code: val('n_code') } }); viewHome('emps');
   });
   for (const e of emps) {
     const c = document.createElement('div'); c.className = 'card';
     c.innerHTML = `<div class="row"><span class="big">${esc(e.name)}</span><span class="badge ${e.active ? 'closed' : 'off'}">${e.active ? 'Attivo' : 'Disattivato'}</span></div>
       <div class="mut">${esc(e.department) || 'Reparto non indicato'} · ${e.n_trips} note spese</div>
       <div style="margin-top:8px">Codice: <span class="code">${esc(e.code)}</span></div>
-      <div class="btnrow"><button class="btn sec mini" data-a="code">Cambia codice</button><button class="btn sec mini" data-a="dep">Reparto</button><button class="btn ${e.active ? 'danger' : 'sec'} mini" data-a="act">${e.active ? 'Disattiva' : 'Riattiva'}</button></div>`;
+      <div class="mut" style="margin-top:4px;overflow-wrap:anywhere">${e.email ? 'E-mail: ' + esc(e.email) : 'Nessuna e-mail: non può usare «Accedi con Microsoft»'}</div>
+      <div class="btnrow"><button class="btn sec mini" data-a="code">Cambia codice</button><button class="btn sec mini" data-a="dep">Reparto</button><button class="btn sec mini" data-a="mail">E-mail</button><button class="btn ${e.active ? 'danger' : 'sec'} mini" data-a="act">${e.active ? 'Disattiva' : 'Riattiva'}</button></div>`;
     c.querySelector('[data-a=code]').onclick = guard(async () => { const v = prompt(`Nuovo codice per ${e.name}`, e.code); if (v != null) { await api('/employees/' + e.id, { method: 'PATCH', body: { code: v.trim() } }); viewHome('emps'); } });
     c.querySelector('[data-a=dep]').onclick = guard(async () => { const v = prompt(`Reparto di ${e.name}`, e.department); if (v != null) { await api('/employees/' + e.id, { method: 'PATCH', body: { department: v.trim() } }); viewHome('emps'); } });
+    c.querySelector('[data-a=mail]').onclick = guard(async () => { const v = prompt(`E-mail Microsoft di ${e.name} (vuoto = nessuna)`, e.email); if (v != null) { await api('/employees/' + e.id, { method: 'PATCH', body: { email: v.trim() } }); viewHome('emps'); } });
     c.querySelector('[data-a=act]').onclick = guard(async () => { if (e.active && !confirm(`Disattivare ${e.name}? Non potrà più entrare; le sue note spese restano.`)) return; await api('/employees/' + e.id, { method: 'PATCH', body: { active: !e.active } }); viewHome('emps'); });
     document.getElementById('el').append(c);
   }
